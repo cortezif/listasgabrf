@@ -241,7 +241,7 @@ function metaRow(rot, val) {
 
 // ── Renderização da decisão ───────────────────────────────────
 function renderDecisao(d, opts, numero) {
-  const { incComent, incAssessor, incRel, incVoto } = opts;
+  const { incComent, incAssessor, incRel, incVoto, incTipo, incData, exportando } = opts;
   let h = '<div class="decisao">';
 
   // Chamada XX
@@ -255,8 +255,8 @@ function renderDecisao(d, opts, numero) {
   meta += metaRow('Polo passivo', d.polo_passivo || '');
   meta += metaRow('Adv. polo passivo', d.adv_polo_passivo || '');
   if (incAssessor) meta += metaRow('Assessor', d.assessor);
-  meta += metaRow('Tipo de sessão', d.tipo ? d.tipo.toUpperCase() : '');
-  meta += metaRow('Data da sessão', d.data);
+  if (incTipo !== false) meta += metaRow('Tipo de sessão', d.tipo ? d.tipo.toUpperCase() : '');
+  if (incData !== false) meta += metaRow('Data da sessão', d.data);
   if (meta) h += `<table class="meta">${meta}</table>`;
 
   // Comentário
@@ -275,7 +275,7 @@ function renderDecisao(d, opts, numero) {
   if (d.relatorio) {
     if (incRel) {
       h += '<div class="sec">Relatório</div>' + parasHtml(d.relatorio);
-    } else {
+    } else if (!exportando) {
       h += `<details><summary>📄 Ver Relatório</summary>` +
            `<div class="sec-conteudo">${parasHtml(d.relatorio)}</div></details>`;
     }
@@ -285,7 +285,7 @@ function renderDecisao(d, opts, numero) {
   if (d.voto) {
     if (incVoto) {
       h += '<div class="sec">Voto</div>' + parasHtml(d.voto);
-    } else {
+    } else if (!exportando) {
       h += `<details><summary>⚖️ Ver Voto</summary>` +
            `<div class="sec-conteudo">${parasHtml(d.voto)}</div></details>`;
     }
@@ -297,9 +297,11 @@ function renderDecisao(d, opts, numero) {
     h += extrairMioloAcordao(d.acordao);
   }
 
-  // Resultado
-  h += '<div class="sec">Resultado</div>';
-  h += `<span class="badge-resultado ${d.css}">${esc(d.resultado)}</span>`;
+  // Resultado (oculto nas exportações)
+  if (!exportando) {
+    h += '<div class="sec">Resultado</div>';
+    h += `<span class="badge-resultado ${d.css}">${esc(d.resultado)}</span>`;
+  }
   h += '</div>';
   return h;
 }
@@ -387,6 +389,8 @@ function abrirDecisao(idxGlobal) {
   const opts = {
     incComent:   document.getElementById('chk-coment')  ?.checked ?? true,
     incAssessor: document.getElementById('chk-assessor')?.checked ?? true,
+    incTipo:     document.getElementById('chk-tipo')    ?.checked ?? true,
+    incData:     document.getElementById('chk-data')    ?.checked ?? true,
     incRel:      document.getElementById('chk-rel')     ?.checked ?? false,
     incVoto:     document.getElementById('chk-voto')    ?.checked ?? false,
   };
@@ -399,11 +403,15 @@ function abrirDecisao(idxGlobal) {
 function barraExport(opts) {
   const chkC  = (opts && opts.incComent   !== false) ? 'checked' : '';
   const chkA  = (opts && opts.incAssessor !== false) ? 'checked' : '';
+  const chkT  = (opts && opts.incTipo     !== false) ? 'checked' : '';
+  const chkD  = (opts && opts.incData     !== false) ? 'checked' : '';
   const chkR  = (opts && opts.incRel      === true)  ? 'checked' : '';
   const chkV  = (opts && opts.incVoto     === true)  ? 'checked' : '';
   return `<div id="barra-export">
     <label><input type="checkbox" id="chk-coment"   ${chkC} onchange="rerender()"> Obs. Desembargador</label>
     <label><input type="checkbox" id="chk-assessor" ${chkA} onchange="rerender()"> Assessor</label>
+    <label><input type="checkbox" id="chk-tipo"     ${chkT} onchange="rerender()"> Tipo de sessão</label>
+    <label><input type="checkbox" id="chk-data"     ${chkD} onchange="rerender()"> Data da sessão</label>
     <label><input type="checkbox" id="chk-rel"      ${chkR} onchange="rerender()"> Relatório</label>
     <label><input type="checkbox" id="chk-voto"     ${chkV} onchange="rerender()"> Voto</label>
     <button class="btn-html" onclick="exportar('html')">⬇ HTML</button>
@@ -431,8 +439,11 @@ function getExportOpts() {
   return {
     incComent:   document.getElementById('chk-coment').checked,
     incAssessor: document.getElementById('chk-assessor').checked,
+    incTipo:     document.getElementById('chk-tipo').checked,
+    incData:     document.getElementById('chk-data').checked,
     incRel:      document.getElementById('chk-rel').checked,
     incVoto:     document.getElementById('chk-voto').checked,
+    exportando:  true,
   };
 }
 
