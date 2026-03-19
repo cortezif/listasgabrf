@@ -559,18 +559,44 @@ ${corpo}
     a.click();
 
   } else if (tipo === 'pdf') {
-    _gerarPdfTemplate(list);
+    const capa  = buildCapa(list);
+    const corpo = buildCorpo(list, optsBase);
+    const printHtml = `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>${esc(titulo)}</title>
+<style>
+@page { margin: 2cm; }
+${CSS_EXPORT}
+</style></head><body>
+${capa}
+${corpo}
+</body></html>`;
+    const win = window.open('', '_blank');
+    if (!win) { alert('Permita pop-ups para exportar PDF.'); return; }
+    win.document.write(printHtml);
+    win.document.close();
+    setTimeout(() => { win.focus(); win.print(); }, 400);
 
   } else if (tipo === 'docx') {
-    const btn = document.querySelector('.btn-docx');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando…'; }
-    try {
-      await _gerarDocxTemplate(list, getExportFilename('docx'));
-    } catch(e) {
-      alert('Erro ao gerar DOCX: ' + e.message);
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = '⬇ DOCX'; }
-    }
+    const opts  = { ...optsBase, incRel: false, incVoto: false };
+    const capa  = buildCapa(list);
+    const corpo = buildCorpo(list, opts);
+    const docHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+xmlns:w="urn:schemas-microsoft-com:office:word"
+xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8">
+<meta name="ProgId" content="Word.Document">
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View>
+<w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
+<style>${CSS_EXPORT}</style></head><body>
+${capa}
+<h1>${esc(titulo)}</h1>
+${corpo}
+</body></html>`;
+    const blob = new Blob(['﻿' + docHtml], { type: 'application/msword' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = getExportFilename('doc');
+    a.click();
   }
 }
 
@@ -636,7 +662,7 @@ function _buildPendDw() {
         '<button onclick="fecharPendentes()">✕</button>' +
       '</div>' +
       '<div id="pend-bd">' +
-        '<div id="pend-info">Processos na pauta (PDF) ausentes no TOTAL.md.</div>' +
+        '<div id="pend-info">Processos com minuta pendente de elaboração/aprovação.</div>' +
         cards +
         '<button id="pend-dl" onclick="exportarPendentes()">⬇ Baixar lista de Pendentes (HTML)</button>' +
       '</div>' +
