@@ -121,6 +121,12 @@ details .sec-conteudo { margin-top: 8px; border-top: 1px solid #eee; padding-top
 #barra-export .btn-fora.zero {
   background: #e0e0e0; border-color: #bdbdbd; color: #999; cursor: default; }
 #barra-export label { font-size: .82em; color: #444; display: flex; align-items: center; gap: 4px; }
+#barra-export .barra-linha-btns {
+  width: 100%; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding-top: 8px; border-top: 1px solid #dde1e7; margin-top: 2px; }
+#barra-export .barra-sep-btns {
+  width: 1px; height: 24px; background: #bdbdbd; align-self: center;
+  flex-shrink: 0; margin: 0 2px; }
 .obs-assessor { background: #fff; border: 1px solid #90caf9; border-left: 4px solid #1565c0; border-radius: 0 4px 4px 0; padding: 10px 14px; margin-bottom: 16px; font-family: "Segoe UI", Arial, sans-serif; font-size: .9em; color: #0d3c7a; }
 .obs-assessor strong { color: #1565c0; font-size: .78em; display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .05em; }
 .item-chk { margin-right: 6px; cursor: pointer; accent-color: #1a237e; }
@@ -134,6 +140,10 @@ details .sec-conteudo { margin-top: 8px; border-top: 1px solid #eee; padding-top
   padding: 4px 14px 3px 22px; font-size: .68em; font-weight: 600;
   text-transform: uppercase; letter-spacing: .06em; color: #546e7a;
   background: #eceff1; border-left: 3px solid #90a4ae; }
+.grupo-subsubmateria {
+  padding: 3px 14px 3px 32px; font-size: .66em; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em; color: #78909c;
+  background: #f5f5f5; border-left: 3px solid #b0bec5; font-style: italic; }
 #contador { font-size: .78em; color: #888; padding: 6px 14px 4px; }
 @media (max-width: 700px) {
   #layout { flex-direction: column; height: auto; }
@@ -185,6 +195,45 @@ details .sec-conteudo { margin-top: 8px; border-top: 1px solid #eee; padding-top
           📚 Agrupar por matéria
         </button>
       </div>
+      <div id="painel-hierarquia" style="display:none;margin-top:6px;background:#f5f7ff;
+           border:1px solid #c5cae9;border-radius:6px;padding:10px 12px;font-size:.78em;">
+        <div style="font-weight:600;color:#3949ab;margin-bottom:8px;font-size:.85em;
+                    letter-spacing:.03em;">🗂 Hierarquia dos níveis</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <label style="display:flex;align-items:center;gap:6px;">
+            <span style="min-width:58px;color:#555;font-weight:600;">1º nível</span>
+            <select id="sel-nivel-1" onchange="alterarHierarquia()"
+                    style="flex:1;font-size:.9em;padding:3px 6px;border:1px solid #c5cae9;
+                           border-radius:4px;background:#fff;color:#222;">
+              <option value="ramo" selected>Matéria</option>
+              <option value="subgrupo">Classe</option>
+              <option value="subclasse">Subclasse</option>
+            </select>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;">
+            <span style="min-width:58px;color:#555;font-weight:600;">2º nível</span>
+            <select id="sel-nivel-2" onchange="alterarHierarquia()"
+                    style="flex:1;font-size:.9em;padding:3px 6px;border:1px solid #c5cae9;
+                           border-radius:4px;background:#fff;color:#222;">
+              <option value="ramo">Matéria</option>
+              <option value="subgrupo" selected>Classe</option>
+              <option value="subclasse">Subclasse</option>
+            </select>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;">
+            <span style="min-width:58px;color:#555;font-weight:600;">3º nível</span>
+            <select id="sel-nivel-3" onchange="alterarHierarquia()"
+                    style="flex:1;font-size:.9em;padding:3px 6px;border:1px solid #c5cae9;
+                           border-radius:4px;background:#fff;color:#222;">
+              <option value="ramo">Matéria</option>
+              <option value="subgrupo">Classe</option>
+              <option value="subclasse" selected>Subclasse</option>
+            </select>
+          </label>
+        </div>
+        <div id="aviso-hierarquia" style="display:none;margin-top:7px;color:#c62828;
+             font-size:.8em;font-weight:600;">⚠ Os três níveis devem ser distintos.</div>
+      </div>
     </div>
     <div id="contador"></div>
     <div id="lista-header" style="padding:0 14px 8px;border-bottom:1px solid #eee;display:none;">
@@ -221,6 +270,34 @@ let IDX_ATIVO = -1;
 // ── Filtro por tipo de sessão ─────────────────────────────────
 let FILTRO_TIPO = 'todas';
 let MODO_MATERIA = false; // false = ordem original; true = agrupado por matéria
+// Ordem da hierarquia ao agrupar por matéria (padrão: Matéria → Classe → Subclasse)
+let NIVEL_1 = 'ramo';
+let NIVEL_2 = 'subgrupo';
+let NIVEL_3 = 'subclasse';
+
+function getValorNivel(d, campo) {
+  if (campo === 'ramo')      return d.ramo      || 'Outros';
+  if (campo === 'subgrupo')  return d.subgrupo  || '';
+  if (campo === 'subclasse') return d.subclasse || '';
+  return '';
+}
+function getCorNivel1(campo, valor) {
+  if (campo === 'ramo') return MATERIAS_CONFIG[valor] || '#3949ab';
+  return '#546e7a';
+}
+function getOrdemFixaNivel(campo, contextoV1) {
+  // Retorna lista ordenada de valores para o campo dado (pode ser vazia = alfabético)
+  if (campo === 'ramo')      return MATERIAS_ORDEM || [];
+  if (campo === 'subclasse') return ['', ...SUBCLASSES_COMUNS];
+  if (campo === 'subgrupo') {
+    // Se o nível acima (contextoV1) é o ramo, usamos a ordem de subgrupos desse ramo
+    if (NIVEL_1 === 'ramo' && contextoV1 && MATERIAS_SUBGRUPOS) {
+      return MATERIAS_SUBGRUPOS[contextoV1] || [];
+    }
+    return [];
+  }
+  return [];
+}
 
 function getFiltrados() {
   // Retorna [{d, idxGlobal, num, numOriginal}]
@@ -239,39 +316,39 @@ function getFiltrados() {
     return base.map((item, seq) => ({ ...item, num: seq + 1 }));
   }
 
-  // Modo matéria: agrupar por ramo, renumerar dentro de cada grupo
-  const grupos = {};
-  const ordem  = [];
+  // Modo matéria: agrupar em 3 níveis dinâmicos (NIVEL_1 → NIVEL_2 → NIVEL_3)
+  const g1 = {}, ord1 = [];
   base.forEach(item => {
-    const r = item.d.ramo || 'Outros';
-    if (!grupos[r]) { grupos[r] = []; ordem.push(r); }
-    grupos[r].push(item);
+    const v1 = getValorNivel(item.d, NIVEL_1);
+    if (!g1[v1]) { g1[v1] = {}; ord1.push(v1); }
+    const v2 = getValorNivel(item.d, NIVEL_2);
+    if (!g1[v1][v2]) g1[v1][v2] = {};
+    const v3 = getValorNivel(item.d, NIVEL_3);
+    if (!g1[v1][v2][v3]) g1[v1][v2][v3] = [];
+    g1[v1][v2][v3].push(item);
   });
+
+  // Ordenar 1º nível
+  const defOrd1 = getOrdemFixaNivel(NIVEL_1, null);
+  const sorted1 = defOrd1.filter(v => g1[v]).concat(ord1.filter(v => !defOrd1.includes(v)));
+
   const resultado = [];
-  // Sort ramos strictly by MATERIAS_ORDEM
-  const sorted = MATERIAS_ORDEM.filter(r => grupos[r])
-    .concat(ordem.filter(r => !MATERIAS_ORDEM.includes(r)));
-  // Build subgrupo order per ramo from MATERIAS_SUBGRUPOS
-  // Processos com subclasse (ED, QO, AI) ficam APÓS os simples do mesmo subgrupo
   let seq = 0;
-  sorted.forEach(ramo => {
-    const subGs = {}; const subOrdInsert = [];
-    grupos[ramo].forEach(item => {
-      const sg = item.d.subgrupo || '';
-      if (!subGs[sg]) { subGs[sg] = []; subOrdInsert.push(sg); }
-      subGs[sg].push(item);
-    });
-    // Sort subgrupos strictly by MATERIAS_SUBGRUPOS[ramo] order
-    const sgDef = (MATERIAS_SUBGRUPOS && MATERIAS_SUBGRUPOS[ramo]) || subOrdInsert;
-    const subOrd = sgDef.filter(sg => subGs[sg])
-      .concat(subOrdInsert.filter(sg => !sgDef.includes(sg)));
-    subOrd.forEach(sg => {
-      // Dentro de cada subgrupo: primeiro os sem subclasse, depois os com subclasse
-      const simples   = subGs[sg].filter(item => !item.d.subclasse);
-      const comSubcl  = subGs[sg].filter(item =>  item.d.subclasse);
-      [...simples, ...comSubcl].forEach(item => {
-        seq++;
-        resultado.push({ ...item, num: seq, ramo, subgrupo: sg });
+  sorted1.forEach(v1 => {
+    const g2 = g1[v1];
+    const ord2 = Object.keys(g2);
+    const defOrd2 = getOrdemFixaNivel(NIVEL_2, v1);
+    const sorted2 = defOrd2.filter(v => g2[v]).concat(ord2.filter(v => !defOrd2.includes(v)));
+    sorted2.forEach(v2 => {
+      const g3 = g2[v2];
+      const ord3 = Object.keys(g3);
+      const defOrd3 = getOrdemFixaNivel(NIVEL_3, v1);
+      const sorted3 = defOrd3.filter(v => g3[v]).concat(ord3.filter(v => !defOrd3.includes(v)));
+      sorted3.forEach(v3 => {
+        g3[v3].forEach(item => {
+          seq++;
+          resultado.push({ ...item, num: seq, _v1: v1, _v2: v2, _v3: v3 });
+        });
       });
     });
   });
@@ -282,13 +359,34 @@ function getFiltrados() {
 
 function toggleModoMateria() {
   MODO_MATERIA = !MODO_MATERIA;
-  const btn = document.getElementById('btn-modo-materia');
+  const btn    = document.getElementById('btn-modo-materia');
+  const painel = document.getElementById('painel-hierarquia');
   if (btn) {
     btn.textContent = MODO_MATERIA ? '🔢 Ordem original' : '📚 Agrupar por matéria';
     btn.style.background  = MODO_MATERIA ? '#e8eaf6' : '#fff';
     btn.style.color       = MODO_MATERIA ? '#1a237e' : '#333';
     btn.style.fontWeight  = MODO_MATERIA ? '700'     : '400';
   }
+  if (painel) painel.style.display = MODO_MATERIA ? '' : 'none';
+  IDX_ATIVO = -1;
+  document.getElementById('estado-vazio').style.display = '';
+  document.getElementById('conteudo-decisao').style.display = 'none';
+  SELECIONADAS.clear();
+  getFiltrados().forEach(item => SELECIONADAS.add(item.idxGlobal));
+  renderLista(document.getElementById('busca').value || '');
+}
+
+function alterarHierarquia() {
+  const s1 = document.getElementById('sel-nivel-1').value;
+  const s2 = document.getElementById('sel-nivel-2').value;
+  const s3 = document.getElementById('sel-nivel-3').value;
+  // Evita duplicatas — se houver conflito, não aplica
+  if (s1 === s2 || s1 === s3 || s2 === s3) {
+    const aviso = document.getElementById('aviso-hierarquia');
+    if (aviso) { aviso.style.display = ''; setTimeout(() => aviso.style.display = 'none', 2500); }
+    return;
+  }
+  NIVEL_1 = s1; NIVEL_2 = s2; NIVEL_3 = s3;
   IDX_ATIVO = -1;
   document.getElementById('estado-vazio').style.display = '';
   document.getElementById('conteudo-decisao').style.display = 'none';
@@ -352,7 +450,12 @@ function metaRow(rot, val) {
 
 // ── Renderização da decisão ───────────────────────────────────
 function renderDecisao(d, opts, numero) {
-  const { incComent, incObsAssessor, incAssessor, incRel, incVoto, incTipo, incData, exportando } = opts;
+  const { incComent, incObsAssessor, incAssessor, incRel, incVoto, incTipo, incData,
+           exportando, incResultado, incExpandir } = opts;
+  // incResultado: mostra badge de resultado (padrão: true na visualização, false na exportação)
+  // incExpandir:  mostra <details> de rel./voto quando não expandido (padrão: true na viz, false na export)
+  const mostrarResultado = incResultado !== undefined ? incResultado : !exportando;
+  const mostrarExpandir  = incExpandir  !== undefined ? incExpandir  : !exportando;
   let h = '<div class="decisao">';
 
   // Chamada XX — formato: CHAMADA 01 - MATÉRIA - SUBGRUPO[ - SUBCLASSE]
@@ -401,7 +504,7 @@ function renderDecisao(d, opts, numero) {
   if (d.relatorio) {
     if (incRel) {
       h += '<div class="sec">Relatório</div>' + parasHtml(d.relatorio);
-    } else if (!exportando) {
+    } else if (mostrarExpandir) {
       h += `<details><summary>📄 Ver Relatório</summary>` +
            `<div class="sec-conteudo">${parasHtml(d.relatorio)}</div></details>`;
     }
@@ -411,7 +514,7 @@ function renderDecisao(d, opts, numero) {
   if (d.voto) {
     if (incVoto) {
       h += '<div class="sec">Voto</div>' + parasHtml(d.voto);
-    } else if (!exportando) {
+    } else if (mostrarExpandir) {
       h += `<details><summary>⚖️ Ver Voto</summary>` +
            `<div class="sec-conteudo">${parasHtml(d.voto)}</div></details>`;
     }
@@ -423,8 +526,8 @@ function renderDecisao(d, opts, numero) {
     h += extrairMioloAcordao(d.acordao);
   }
 
-  // Resultado (oculto nas exportações)
-  if (!exportando) {
+  // Resultado
+  if (mostrarResultado) {
     h += '<div class="sec">Resultado</div>';
     h += `<span class="badge-resultado ${d.css}">${esc(d.resultado)}</span>`;
   }
@@ -482,20 +585,26 @@ function renderLista(filtro) {
   if (!MODO_MATERIA) {
     lista.innerHTML = visiveis.map(item => _itemListaHtml(item)).join('');
   } else {
-    // Inserir cabeçalhos de grupo
+    // Inserir cabeçalhos de grupo com 3 níveis dinâmicos
     let html = '';
-    let ramoAtual = null, sgAtual = null;
+    let v1Atual = null, v2Atual = null, v3Atual = null;
+    const LABELS = { ramo: 'Matéria', subgrupo: 'Classe', subclasse: 'Subclasse' };
     visiveis.forEach(item => {
-      const r  = item.d.ramo     || 'Outros';
-      const sg = item.d.subgrupo || '';
-      if (r !== ramoAtual) {
-        ramoAtual = r; sgAtual = null;
-        const cor = MATERIAS_CONFIG[r] || '#3949ab';
-        html += `<div class="grupo-materia" style="background:${cor}">${esc(r)}</div>`;
+      const v1 = item._v1 !== undefined ? item._v1 : (getValorNivel(item.d, NIVEL_1));
+      const v2 = item._v2 !== undefined ? item._v2 : (getValorNivel(item.d, NIVEL_2));
+      const v3 = item._v3 !== undefined ? item._v3 : (getValorNivel(item.d, NIVEL_3));
+      if (v1 !== v1Atual) {
+        v1Atual = v1; v2Atual = null; v3Atual = null;
+        const cor = getCorNivel1(NIVEL_1, v1);
+        html += `<div class="grupo-materia" style="background:${cor}">${esc(v1)}</div>`;
       }
-      if (sg && sg !== sgAtual) {
-        sgAtual = sg;
-        html += `<div class="grupo-submateria">${esc(sg)}</div>`;
+      if (v2 && v2 !== v2Atual) {
+        v2Atual = v2; v3Atual = null;
+        html += `<div class="grupo-submateria">${esc(v2)}</div>`;
+      }
+      if (v3 && v3 !== v3Atual) {
+        v3Atual = v3;
+        html += `<div class="grupo-subsubmateria">${esc(v3)}</div>`;
       }
       html += _itemListaHtml(item);
     });
@@ -549,6 +658,8 @@ function abrirDecisao(idxGlobal) {
     incData:        document.getElementById('chk-data')        ?.checked ?? true,
     incRel:         document.getElementById('chk-rel')         ?.checked ?? false,
     incVoto:        document.getElementById('chk-voto')        ?.checked ?? false,
+    incResultado:   document.getElementById('chk-resultado')   ?.checked ?? true,
+    incExpandir:    document.getElementById('chk-expandir')    ?.checked ?? true,
   };
   cont.innerHTML = barraExport(opts) + renderDecisao(d, opts, num);
   renderLista(document.getElementById('busca').value);
@@ -564,23 +675,30 @@ function barraExport(opts) {
   const chkD  = (opts && opts.incData     !== false) ? 'checked' : '';
   const chkR  = (opts && opts.incRel      === true)  ? 'checked' : '';
   const chkV  = (opts && opts.incVoto     === true)  ? 'checked' : '';
+  const chkRes = (opts && opts.incResultado === false) ? '' : 'checked';
+  const chkExp = (opts && opts.incExpandir  === false) ? '' : 'checked';
   return `<div id="barra-export">
     <label><input type="checkbox" id="chk-obs-assessor" ${chkOA} onchange="rerender()"> Obs. Assessor</label>
-    <label><input type="checkbox" id="chk-coment"   ${chkC} onchange="rerender()"> Obs. Desembargador</label>
-    <label><input type="checkbox" id="chk-assessor" ${chkA} onchange="rerender()"> Assessor</label>
-    <label><input type="checkbox" id="chk-tipo"     ${chkT} onchange="rerender()"> Tipo de sessão</label>
-    <label><input type="checkbox" id="chk-data"     ${chkD} onchange="rerender()"> Data da sessão</label>
-    <label><input type="checkbox" id="chk-rel"      ${chkR} onchange="rerender()"> Relatório</label>
-    <label><input type="checkbox" id="chk-voto"     ${chkV} onchange="rerender()"> Voto</label>
-    <button class="btn-html" onclick="exportar('html')">⬇ HTML</button>
-    <button class="btn-pdf"  onclick="exportar('pdf')">⬇ PDF</button>
-    <button class="btn-docx" onclick="exportar('docx')">⬇ DOCX</button>
-    <button class="${PENDENTES.length ? 'btn-pend' : 'btn-pend zero'}"
-            onclick="${PENDENTES.length ? 'abrirPendentes()' : ''}">
-      ${PENDENTES.length ? '⚠ Pendentes (' + PENDENTES.length + ')' : '✓ Sem pendentes'}</button>
-    <button class="${FORA_PAUTA.length ? 'btn-fora' : 'btn-fora zero'}"
-            onclick="${FORA_PAUTA.length ? 'abrirFora()' : ''}">
-      ${FORA_PAUTA.length ? '📂 Fora de pauta (' + FORA_PAUTA.length + ')' : '📂 —'}</button>
+    <label><input type="checkbox" id="chk-coment"      ${chkC}  onchange="rerender()"> Obs. Desembargador</label>
+    <label><input type="checkbox" id="chk-assessor"    ${chkA}  onchange="rerender()"> Assessor</label>
+    <label><input type="checkbox" id="chk-tipo"        ${chkT}  onchange="rerender()"> Tipo de sessão</label>
+    <label><input type="checkbox" id="chk-data"        ${chkD}  onchange="rerender()"> Data da sessão</label>
+    <label><input type="checkbox" id="chk-rel"         ${chkR}  onchange="rerender()"> Relatório</label>
+    <label><input type="checkbox" id="chk-voto"        ${chkV}  onchange="rerender()"> Voto</label>
+    <label><input type="checkbox" id="chk-resultado"   ${chkRes} onchange="rerender()"> Resultado</label>
+    <label><input type="checkbox" id="chk-expandir"    ${chkExp} onchange="rerender()"> Rel./Voto expansível</label>
+    <div class="barra-linha-btns">
+      <button class="btn-html" onclick="exportar('html')">⬇ HTML</button>
+      <button class="btn-pdf"  onclick="exportar('pdf')">⬇ PDF</button>
+      <button class="btn-docx" onclick="exportar('docx')">⬇ DOCX</button>
+      <span class="barra-sep-btns"></span>
+      <button class="${PENDENTES.length ? 'btn-pend' : 'btn-pend zero'}"
+              onclick="${PENDENTES.length ? 'abrirPendentes()' : ''}">
+        ${PENDENTES.length ? '⚠ Pendentes (' + PENDENTES.length + ')' : '✓ Sem pendentes'}</button>
+      <button class="${FORA_PAUTA.length ? 'btn-fora' : 'btn-fora zero'}"
+              onclick="${FORA_PAUTA.length ? 'abrirFora()' : ''}">
+        ${FORA_PAUTA.length ? '📂 Fora de lista (' + FORA_PAUTA.length + ')' : '📂 —'}</button>
+    </div>
   </div>`;
 }
 
@@ -599,15 +717,15 @@ function buildCorpo(list, opts) {
   if (!MODO_MATERIA) {
     return list.map(item => renderDecisao(item.d, opts, item.num)).join('\n<hr>\n');
   }
-  // Modo matéria: cabeçalho apenas com o RAMO (sem subgrupo)
-  let html = '', ramoAtual = null;
+  // Modo matéria: cabeçalho de 1º nível colorido; 2º nível como separador menor
+  let html = '', v1Atual = null;
   list.forEach((item, idx) => {
-    const r = item.d.ramo || 'Outros';
-    if (r !== ramoAtual) {
-      ramoAtual = r;
-      const cor = MATERIAS_CONFIG[r] || '#1a237e';
+    const v1 = item._v1 !== undefined ? item._v1 : getValorNivel(item.d, NIVEL_1);
+    if (v1 !== v1Atual) {
+      v1Atual = v1;
+      const cor = getCorNivel1(NIVEL_1, v1);
       const mt  = idx === 0 ? 'margin-top:0' : '';
-      html += '<div class="exp-mat-hdr" style="background:' + cor + ';color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;' + mt + '">' + esc(r.toUpperCase()) + '</div>';
+      html += '<div class="exp-mat-hdr" style="background:' + cor + ';color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;' + mt + '">' + esc(v1.toUpperCase()) + '</div>';
     } else {
       html += '<hr>';
     }
@@ -625,6 +743,8 @@ function getExportOpts() {
     incData:         document.getElementById('chk-data').checked,
     incRel:          document.getElementById('chk-rel').checked,
     incVoto:         document.getElementById('chk-voto').checked,
+    incResultado:    document.getElementById('chk-resultado')?.checked ?? true,
+    incExpandir:     document.getElementById('chk-expandir') ?.checked ?? true,
     exportando:      true,
   };
 }
