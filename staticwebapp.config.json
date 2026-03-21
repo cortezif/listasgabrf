@@ -1,0 +1,27 @@
+{
+  "routes": [
+    {
+      "route": "/sessoes/*",
+      "allowedRoles": ["anonymous"]
+    }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/sessoes/*", "*.{css,js,json,png,jpg,svg,ico,html}"]
+  },
+  "responseOverrides": {
+    "404": {
+      "rewrite": "/index.html",
+      "statusCode": 200
+    }
+  },
+  "mimeTypes": {
+    ".html": "text/html;charset=utf-8",
+    ".json": "application/json;charset=utf-8"
+  },
+  "globalHeaders": {
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "X-Frame-Options": "SAMEORIGIN",
+    "X-Content-Type-Options": "nosniff"
+  }
+}
