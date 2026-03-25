@@ -799,7 +799,7 @@ function renderDecisao(d, opts, numero) {
   // Destaque / Resposta — cadeia encadeada — apenas no HTML exportado
   if (opts && opts.exportando) {
     var _dstId = (d.cnj||'').replace(/[^a-zA-Z0-9]/g,'_');
-    h += '<div id="chain-' + _dstId + '" class="dest-chain" data-cnj="' + esc(d.cnj||'') + '"></div>';
+    h += '<div id="chain-' + _dstId + '" class="dest-chain" data-cnj="' + esc(d.cnj||'') + '" style="margin-top:20px;padding-top:14px;border-top:2px solid #e0e0e0;"></div>';
   }
   h += '</div>';
   return h;
@@ -1649,6 +1649,7 @@ var _DESTAQUES_SALVOS = {};
 
 function _escH(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function _chainSafeId(cnj){ return cnj.replace(/[^a-zA-Z0-9]/g,'_'); }
+function _normTxt(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim(); }
 
 /* ── Inicializar cadeias a partir do HTML salvo ── */
 function _initAllChains() {
@@ -1745,10 +1746,14 @@ function _salvarItem(btn) {
 function _extrairCadeiaTexto(cnj) {
   var chain = _CHAINS[cnj] || [];
   if (!chain.length) return '';
-  var NL2 = String.fromCharCode(10,10);
-  return chain.map(function(item) {
-    return (item.tipo==='D' ? 'DESTAQUE: ' : 'RESPOSTA: ') + item.texto;
-  }).join(NL2);
+  var NL = String.fromCharCode(10);
+  var parts = [];
+  chain.forEach(function(item) {
+    parts.push((item.tipo==='D' ? 'Destaque:' : 'Resposta:'));
+    parts.push(item.texto);
+    parts.push('');
+  });
+  return parts.join(NL).trim();
 }
 
 /* ── Extrair HTML da cadeia ── */
@@ -1774,35 +1779,81 @@ function _extrairCadeiaHTML(cnj) {
   return h;
 }
 
-/* ── Extrair texto completo do card ── */
-function _extrairTextoCard(cnj) {
+/* ── Extrair apenas a ementa (citação) + cadeia para envio ── */
+function _extrairEmentaCard(cnj) {
   var safeId = _chainSafeId(cnj);
   var container = document.getElementById('chain-' + safeId);
   var card = container ? container.closest('.decisao') : null;
-  if (!card) return _extrairCadeiaTexto(cnj);
-  var clone = card.cloneNode(true);
-  clone.querySelectorAll('.dest-chain').forEach(function(el){ el.remove(); });
-  clone.querySelectorAll('button').forEach(function(el){ el.remove(); });
-  clone.querySelectorAll('a[href^="mailto"],a[href^="https://wa.me"]').forEach(function(el){ el.remove(); });
-  var cardText = clone.innerText.trim();
-  var cadeiaText = _extrairCadeiaTexto(cnj);
-  var NL2 = String.fromCharCode(10,10);
-  return cardText + (cadeiaText ? NL2 + cadeiaText : '');
+  var NL = String.fromCharCode(10);
+  var chain = _CHAINS[cnj] || [];
+  var lines = [];
+  if (card) {
+    var clone = card.cloneNode(true);
+    clone.querySelectorAll('.dest-chain,button,details').forEach(function(el){ el.remove(); });
+    var chamEl = clone.querySelector('.chamada');
+    var chamTxt = chamEl ? chamEl.textContent.trim() : '';
+    lines.push((chamTxt ? chamTxt + ' — ' : '') + cnj);
+    var resEl = clone.querySelector('.badge-resultado');
+    if (resEl) { lines.push(''); lines.push('Resultado: ' + resEl.textContent.trim()); }
+    var secEls = Array.from(clone.querySelectorAll('.sec'));
+    secEls.forEach(function(sec) {
+      if (_normTxt(sec.textContent) !== 'ementa') return;
+      var nxt = sec.nextSibling;
+      var ementaLinhas = [];
+      while (nxt) {
+        if (nxt.nodeType === 1 && nxt.classList && nxt.classList.contains('sec')) break;
+        if (nxt.nodeType === 1) { var t = nxt.textContent.trim(); if (t) ementaLinhas.push(t); }
+        nxt = nxt.nextSibling;
+      }
+      if (ementaLinhas.length) {
+        lines.push('');
+        lines.push('> Ementa:');
+        ementaLinhas.forEach(function(l){ lines.push('> ' + l); });
+      }
+    });
+  } else {
+    lines.push(cnj);
+  }
+  if (chain.length) {
+    lines.push('');
+    chain.forEach(function(item) {
+      lines.push(item.tipo === 'D' ? 'Destaque:' : 'Resposta:');
+      lines.push(item.texto);
+      lines.push('');
+    });
+  }
+  return lines.join(NL).trim();
 }
 
-/* ── Extrair HTML completo do card ── */
+/* ── Extrair HTML do card para clipboard (ementa em blockquote + cadeia) ── */
 function _extrairHTMLCard(cnj) {
   var safeId = _chainSafeId(cnj);
   var container = document.getElementById('chain-' + safeId);
   var card = container ? container.closest('.decisao') : null;
   if (!card) return '';
   var clone = card.cloneNode(true);
-  clone.querySelectorAll('.dest-chain').forEach(function(el){ el.remove(); });
-  clone.querySelectorAll('button').forEach(function(el){ el.remove(); });
+  clone.querySelectorAll('.dest-chain,button,details').forEach(function(el){ el.remove(); });
   clone.querySelectorAll('a[href^="mailto"],a[href^="https://wa.me"]').forEach(function(el){ el.remove(); });
+  var secs = Array.from(clone.querySelectorAll('.sec'));
+  secs.forEach(function(sec) {
+    var t = _normTxt(sec.textContent);
+    if (t !== 'relatorio' && t !== 'voto' && t !== 'resultado') return;
+    var nxt = sec.nextSibling;
+    while (nxt) {
+      var tmp = nxt.nextSibling;
+      if (nxt.nodeType === 1 && nxt.classList && nxt.classList.contains('sec')) break;
+      nxt.parentNode && nxt.parentNode.removeChild(nxt);
+      nxt = tmp;
+    }
+    sec.remove();
+  });
+  var bqDiv = document.createElement('div');
+  bqDiv.innerHTML = '<blockquote style="border-left:4px solid #1a237e;margin:0 0 14px 0;'
+    +'padding:10px 18px;background:#f0f4ff;border-radius:0 6px 6px 0;">'
+    + clone.outerHTML + '</blockquote>';
   var chainHTML = _extrairCadeiaHTML(cnj);
-  if (chainHTML) clone.insertAdjacentHTML('beforeend', chainHTML);
-  return clone.outerHTML;
+  if (chainHTML) bqDiv.insertAdjacentHTML('beforeend', chainHTML);
+  return bqDiv.outerHTML;
 }
 
 /* ── Salvar documento HTML ── */
@@ -1875,10 +1926,10 @@ function _abrirEnvioDestaque(btn) {
     return;
   }
   btn.innerHTML = '⏳ Preparando…';
-  var textoCompleto = _extrairTextoCard(cnj);
+  var textoCompleto = _extrairEmentaCard(cnj);
   var cardHTML = _extrairHTMLCard(cnj);
   _copiarHTMLClipboard(cardHTML, textoCompleto);
-  var assunto = encodeURIComponent('Destaque/Resposta - ' + cnj);
+  var assunto = encodeURIComponent('Ementa - ' + cnj);
   var corpo   = encodeURIComponent(textoCompleto);
   var html2 = '<div style="background:#f5f7ff;border:1px solid #c5cae9;border-radius:6px;'
     +'padding:8px 12px;font-family:Arial,sans-serif;font-size:.82em;">';
@@ -1927,11 +1978,11 @@ function _abrirEnvioTodosDestaques() {
     return;
   }
   var sep = String.fromCharCode(10,10) + '---' + String.fromCharCode(10,10);
-  var linhas = cnjList.map(function(cnj){ return _extrairTextoCard(cnj); }).join(sep);
+  var linhas = cnjList.map(function(cnj){ return _extrairEmentaCard(cnj); }).join(sep);
   var htmlCards = cnjList.map(function(cnj){ return _extrairHTMLCard(cnj); }).join('<hr style="margin:16px 0;">');
   _copiarHTMLClipboard(htmlCards, linhas);
   var corpo   = encodeURIComponent(linhas);
-  var assunto = encodeURIComponent('Destaques/Respostas - pauta TRF5');
+  var assunto = encodeURIComponent('Ementas - pauta TRF5');
   var ov = document.getElementById('todos-dest-ov');
   if (!ov) { ov=document.createElement('div'); ov.id='todos-dest-ov'; ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;display:flex;align-items:flex-start;justify-content:center;padding-top:60px;'; document.body.appendChild(ov); }
   var html2 = '<div style="background:#fff;border-radius:8px;padding:20px 24px;min-width:340px;max-width:480px;box-shadow:0 4px 24px rgba(0,0,0,.25);font-family:Arial,sans-serif;">';
